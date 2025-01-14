@@ -12,6 +12,8 @@ const state = {
     textNodes: null,
     pageWords: null,
   },
+  lastHighlightTime: 0,
+  highlightDebounceMs: 1000, // Debounce highlighting operation
 };
 
 // Language detection and processing
@@ -293,21 +295,38 @@ const pageAnalyzer = {
   },
 
   _applyHighlighting(textNodes) {
-    // Remove existing highlights
+    // Debounce highlight operations
+    const now = Date.now();
+    if (now - state.lastHighlightTime < state.highlightDebounceMs) {
+      return;
+    }
+    state.lastHighlightTime = now;
+
+    // Create a map of existing highlights to avoid unnecessary re-highlighting
+    const existingHighlights = new Map();
     document
       .querySelectorAll(".anki-highlight-known, .anki-highlight-unknown")
       .forEach((el) => {
-        if (el.parentNode) {
-          const textNode = document.createTextNode(el.textContent);
-          el.parentNode.replaceChild(textNode, el);
-        }
+        existingHighlights.set(el.textContent, {
+          element: el,
+          class: el.className,
+        });
       });
 
     textNodes.forEach((node) => {
+      if (
+        !node.parentNode ||
+        node.parentNode.classList.contains("anki-highlight-known") ||
+        node.parentNode.classList.contains("anki-highlight-unknown")
+      ) {
+        return;
+      }
+
       const text = node.textContent;
       if (!text.trim()) return;
 
       const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
 
       if (langUtils.containsCJK(text)) {
         const lang = langUtils.detectLanguage(text);
@@ -316,7 +335,12 @@ const pageAnalyzer = {
 
         tokens.forEach((token) => {
           const cleanToken = token.trim();
-          if (
+          const existing = existingHighlights.get(token);
+
+          if (existing) {
+            // Reuse existing highlight
+            fragment.appendChild(existing.element.cloneNode(true));
+          } else if (
             state.deckWords.known.has(cleanToken) ||
             state.deckWords.unknown.has(cleanToken)
           ) {
@@ -333,7 +357,11 @@ const pageAnalyzer = {
       } else {
         text.split(/(\s+)/).forEach((word) => {
           const cleanWord = word.toLowerCase().replace(/[^\w]/g, "");
-          if (
+          const existing = existingHighlights.get(word);
+
+          if (existing) {
+            fragment.appendChild(existing.element.cloneNode(true));
+          } else if (
             cleanWord &&
             (state.deckWords.known.has(cleanWord) ||
               state.deckWords.unknown.has(cleanWord))
@@ -386,7 +414,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // URL change observer
 let lastUrl = window.location.href;
-new MutationObserver(() => {
+const urlObserver = new MutationObserver(() => {
   if (lastUrl !== window.location.href) {
     lastUrl = window.location.href;
     if (state.isEnabled) {
@@ -394,7 +422,15 @@ new MutationObserver(() => {
       pageAnalyzer.analyzeContent(true);
     }
   }
-}).observe(document, { subtree: true, childList: true });
+});
+
+// Configure observer to only watch for URL changes
+urlObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: false,
+  attributes: false,
+});
 
 // Initial setup
 chrome.storage.local.get(["isEnabled", "selectedDeck"], (result) => {

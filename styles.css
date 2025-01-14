@@ -3,6 +3,8 @@ span.anki-highlight-known {
     display: inline !important;
     padding: 0 !important;
     margin: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
 }
 
 span.anki-highlight-unknown {
@@ -10,4 +12,18 @@ span.anki-highlight-unknown {
     display: inline !important;
     padding: 0 !important;
     margin: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* Prevent other elements from covering our highlights */
+span.anki-highlight-known::after,
+span.anki-highlight-unknown::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
 }
