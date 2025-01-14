@@ -271,7 +271,8 @@ const pageAnalyzer = {
   },
 
   _calculateStats(pageWords) {
-    const stats = { known: 0, unknown: 0, new: 0 };
+    const stats = { known: 0, unknown: 0, new: 0, deckPercentage: 0 };
+    const totalWords = pageWords.size;
 
     for (const word of pageWords) {
       const cleanWord = word.trim();
@@ -282,6 +283,13 @@ const pageAnalyzer = {
       } else {
         stats.new++;
       }
+    }
+
+    // Calculate percentage of words that are in the deck (both known and unknown)
+    if (totalWords > 0) {
+      stats.deckPercentage = Math.round(
+        ((stats.known + stats.unknown) / totalWords) * 100,
+      );
     }
 
     return stats;

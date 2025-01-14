@@ -1,92 +1,114 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>Anki Vocabulary Analyzer</title>
-  <style>
-    body {
-      width: 300px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
-    }
-    .status {
-      margin: 10px 0;
-    }
-    #deckSelector {
-      width: 100%;
-      margin: 10px 0;
-    }
-    .toggle-container {
-      display: flex;
-      align-items: center;
-      margin: 10px 0;
-    }
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 60px;
-      height: 34px;
-    }
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 34px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 26px;
-      width: 26px;
-      left: 4px;
-      bottom: 4px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-    input:checked + .slider {
-      background-color: #2196F3;
-    }
-    input:checked + .slider:before {
-      transform: translateX(26px);
-    }
-  </style>
-</head>
-<body>
-  <h2>Anki Vocabulary Analyzer</h2>
-  
-  <div class="status" id="connectionStatus">
-    Checking Anki connection...
-  </div>
+    <head>
+        <title>Anki Vocabulary Analyzer</title>
+        <style>
+            body {
+                width: 300px;
+                padding: 10px;
+                font-family: Arial, sans-serif;
+            }
+            .status {
+                margin: 10px 0;
+            }
+            #deckSelector {
+                width: 100%;
+                margin: 10px 0;
+            }
+            .toggle-container {
+                display: flex;
+                align-items: center;
+                margin: 10px 0;
+            }
+            .toggle-switch {
+                position: relative;
+                display: inline-block;
+                width: 60px;
+                height: 34px;
+            }
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+            .slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #ccc;
+                transition: 0.4s;
+                border-radius: 34px;
+            }
+            .slider:before {
+                position: absolute;
+                content: "";
+                height: 26px;
+                width: 26px;
+                left: 4px;
+                bottom: 4px;
+                background-color: white;
+                transition: 0.4s;
+                border-radius: 50%;
+            }
+            input:checked + .slider {
+                background-color: #2196f3;
+            }
+            input:checked + .slider:before {
+                transform: translateX(26px);
+            }
+            .stats-item {
+                margin: 5px 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .stats-value {
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Anki Vocabulary Analyzer</h2>
 
-  <select id="deckSelector" disabled>
-    <option value="">Select a deck...</option>
-  </select>
+        <div class="status" id="connectionStatus">
+            Checking Anki connection...
+        </div>
 
-  <div class="toggle-container">
-    <span>Enable Analysis: </span>
-    <label class="toggle-switch">
-      <input type="checkbox" id="enableToggle">
-      <span class="slider"></span>
-    </label>
-  </div>
+        <select id="deckSelector" disabled>
+            <option value="">Select a deck...</option>
+        </select>
 
-  <div id="stats" style="display: none;">
-    <h3>Current Page Stats:</h3>
-    <p>Known words: <span id="knownWords">0</span></p>
-    <p>Unknown words: <span id="unknownWords">0</span></p>
-    <p>New words: <span id="newWords">0</span></p>
-  </div>
+        <div class="toggle-container">
+            <span>Enable Analysis: </span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="enableToggle" />
+                <span class="slider"></span>
+            </label>
+        </div>
 
-  <script src="popup.js"></script>
-</body>
+        <div id="stats" style="display: none">
+            <h3>Current Page Stats:</h3>
+            <div class="stats-item">
+                <span>Known words:</span>
+                <span id="knownWords" class="stats-value">0</span>
+            </div>
+            <div class="stats-item">
+                <span>Unknown words:</span>
+                <span id="unknownWords" class="stats-value">0</span>
+            </div>
+            <div class="stats-item">
+                <span>New words:</span>
+                <span id="newWords" class="stats-value">0</span>
+            </div>
+            <div class="stats-item">
+                <span>Words in deck:</span>
+                <span id="deckPercentage" class="stats-value">0%</span>
+            </div>
+        </div>
+
+        <script src="popup.js"></script>
+    </body>
 </html>
