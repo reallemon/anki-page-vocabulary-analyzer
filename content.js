@@ -12,6 +12,8 @@ const state = {
     textNodes: null,
     pageWords: null,
   },
+  lastHighlightTime: 0,
+  highlightDebounceMs: 1000, // Debounce highlighting operation
 };
 
 // Language detection and processing
@@ -293,18 +295,38 @@ const pageAnalyzer = {
   },
 
   _applyHighlighting(textNodes) {
-    document.querySelectorAll(".anki-known, .anki-unknown").forEach((el) => {
-      if (el.parentNode) {
-        const textNode = document.createTextNode(el.textContent);
-        el.parentNode.replaceChild(textNode, el);
-      }
-    });
+    // Debounce highlight operations
+    const now = Date.now();
+    if (now - state.lastHighlightTime < state.highlightDebounceMs) {
+      return;
+    }
+    state.lastHighlightTime = now;
+
+    // Create a map of existing highlights to avoid unnecessary re-highlighting
+    const existingHighlights = new Map();
+    document
+      .querySelectorAll(".anki-highlight-known, .anki-highlight-unknown")
+      .forEach((el) => {
+        existingHighlights.set(el.textContent, {
+          element: el,
+          class: el.className,
+        });
+      });
 
     textNodes.forEach((node) => {
+      if (
+        !node.parentNode ||
+        node.parentNode.classList.contains("anki-highlight-known") ||
+        node.parentNode.classList.contains("anki-highlight-unknown")
+      ) {
+        return;
+      }
+
       const text = node.textContent;
       if (!text.trim()) return;
 
-      const span = document.createElement("span");
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
 
       if (langUtils.containsCJK(text)) {
         const lang = langUtils.detectLanguage(text);
@@ -312,36 +334,52 @@ const pageAnalyzer = {
         const tokens = tokenizer.call(tokenizers, text);
 
         tokens.forEach((token) => {
-          const wordSpan = document.createElement("span");
-          wordSpan.textContent = token;
-
           const cleanToken = token.trim();
-          if (state.deckWords.known.has(cleanToken)) {
-            wordSpan.className = "anki-known";
-          } else if (state.deckWords.unknown.has(cleanToken)) {
-            wordSpan.className = "anki-unknown";
-          }
+          const existing = existingHighlights.get(token);
 
-          span.appendChild(wordSpan);
+          if (existing) {
+            // Reuse existing highlight
+            fragment.appendChild(existing.element.cloneNode(true));
+          } else if (
+            state.deckWords.known.has(cleanToken) ||
+            state.deckWords.unknown.has(cleanToken)
+          ) {
+            const span = document.createElement("span");
+            span.textContent = token;
+            span.className = state.deckWords.known.has(cleanToken)
+              ? "anki-highlight-known"
+              : "anki-highlight-unknown";
+            fragment.appendChild(span);
+          } else {
+            fragment.appendChild(document.createTextNode(token));
+          }
         });
       } else {
         text.split(/(\s+)/).forEach((word) => {
-          const wordSpan = document.createElement("span");
-          wordSpan.textContent = word;
-
           const cleanWord = word.toLowerCase().replace(/[^\w]/g, "");
-          if (cleanWord && state.deckWords.known.has(cleanWord)) {
-            wordSpan.className = "anki-known";
-          } else if (cleanWord && state.deckWords.unknown.has(cleanWord)) {
-            wordSpan.className = "anki-unknown";
-          }
+          const existing = existingHighlights.get(word);
 
-          span.appendChild(wordSpan);
+          if (existing) {
+            fragment.appendChild(existing.element.cloneNode(true));
+          } else if (
+            cleanWord &&
+            (state.deckWords.known.has(cleanWord) ||
+              state.deckWords.unknown.has(cleanWord))
+          ) {
+            const span = document.createElement("span");
+            span.textContent = word;
+            span.className = state.deckWords.known.has(cleanWord)
+              ? "anki-highlight-known"
+              : "anki-highlight-unknown";
+            fragment.appendChild(span);
+          } else {
+            fragment.appendChild(document.createTextNode(word));
+          }
         });
       }
 
       if (node.parentNode) {
-        node.parentNode.replaceChild(span, node);
+        node.parentNode.replaceChild(fragment, node);
       }
     });
   },
@@ -376,7 +414,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // URL change observer
 let lastUrl = window.location.href;
-new MutationObserver(() => {
+const urlObserver = new MutationObserver(() => {
   if (lastUrl !== window.location.href) {
     lastUrl = window.location.href;
     if (state.isEnabled) {
@@ -384,7 +422,15 @@ new MutationObserver(() => {
       pageAnalyzer.analyzeContent(true);
     }
   }
-}).observe(document, { subtree: true, childList: true });
+});
+
+// Configure observer to only watch for URL changes
+urlObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: false,
+  attributes: false,
+});
 
 // Initial setup
 chrome.storage.local.get(["isEnabled", "selectedDeck"], (result) => {
