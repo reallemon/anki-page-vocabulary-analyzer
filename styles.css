@@ -1,0 +1,7 @@
+.anki-known {
+  background-color: rgba(0, 255, 0, 0.2);
+}
+
+.anki-unknown {
+  background-color: rgba(255, 165, 0, 0.2);
+}
