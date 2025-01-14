@@ -293,18 +293,21 @@ const pageAnalyzer = {
   },
 
   _applyHighlighting(textNodes) {
-    document.querySelectorAll(".anki-known, .anki-unknown").forEach((el) => {
-      if (el.parentNode) {
-        const textNode = document.createTextNode(el.textContent);
-        el.parentNode.replaceChild(textNode, el);
-      }
-    });
+    // Remove existing highlights
+    document
+      .querySelectorAll(".anki-highlight-known, .anki-highlight-unknown")
+      .forEach((el) => {
+        if (el.parentNode) {
+          const textNode = document.createTextNode(el.textContent);
+          el.parentNode.replaceChild(textNode, el);
+        }
+      });
 
     textNodes.forEach((node) => {
       const text = node.textContent;
       if (!text.trim()) return;
 
-      const span = document.createElement("span");
+      const fragment = document.createDocumentFragment();
 
       if (langUtils.containsCJK(text)) {
         const lang = langUtils.detectLanguage(text);
@@ -312,36 +315,43 @@ const pageAnalyzer = {
         const tokens = tokenizer.call(tokenizers, text);
 
         tokens.forEach((token) => {
-          const wordSpan = document.createElement("span");
-          wordSpan.textContent = token;
-
           const cleanToken = token.trim();
-          if (state.deckWords.known.has(cleanToken)) {
-            wordSpan.className = "anki-known";
-          } else if (state.deckWords.unknown.has(cleanToken)) {
-            wordSpan.className = "anki-unknown";
+          if (
+            state.deckWords.known.has(cleanToken) ||
+            state.deckWords.unknown.has(cleanToken)
+          ) {
+            const span = document.createElement("span");
+            span.textContent = token;
+            span.className = state.deckWords.known.has(cleanToken)
+              ? "anki-highlight-known"
+              : "anki-highlight-unknown";
+            fragment.appendChild(span);
+          } else {
+            fragment.appendChild(document.createTextNode(token));
           }
-
-          span.appendChild(wordSpan);
         });
       } else {
         text.split(/(\s+)/).forEach((word) => {
-          const wordSpan = document.createElement("span");
-          wordSpan.textContent = word;
-
           const cleanWord = word.toLowerCase().replace(/[^\w]/g, "");
-          if (cleanWord && state.deckWords.known.has(cleanWord)) {
-            wordSpan.className = "anki-known";
-          } else if (cleanWord && state.deckWords.unknown.has(cleanWord)) {
-            wordSpan.className = "anki-unknown";
+          if (
+            cleanWord &&
+            (state.deckWords.known.has(cleanWord) ||
+              state.deckWords.unknown.has(cleanWord))
+          ) {
+            const span = document.createElement("span");
+            span.textContent = word;
+            span.className = state.deckWords.known.has(cleanWord)
+              ? "anki-highlight-known"
+              : "anki-highlight-unknown";
+            fragment.appendChild(span);
+          } else {
+            fragment.appendChild(document.createTextNode(word));
           }
-
-          span.appendChild(wordSpan);
         });
       }
 
       if (node.parentNode) {
-        node.parentNode.replaceChild(span, node);
+        node.parentNode.replaceChild(fragment, node);
       }
     });
   },
