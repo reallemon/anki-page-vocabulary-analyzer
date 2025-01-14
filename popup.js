@@ -114,5 +114,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     document.getElementById("knownWords").textContent = message.stats.known;
     document.getElementById("unknownWords").textContent = message.stats.unknown;
     document.getElementById("newWords").textContent = message.stats.new;
+    document.getElementById("deckPercentage").textContent =
+      `${message.stats.deckPercentage}%`;
   }
 });
