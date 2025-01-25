@@ -3,8 +3,8 @@ const state = {
   isEnabled: false,
   selectedDeck: "",
   deckWords: {
-    known: new Set(),
-    unknown: new Set(),
+    known: new Map(), // Map of word -> reading
+    unknown: new Map(),
   },
   pageCache: {
     currentUrl: "",
@@ -13,7 +13,7 @@ const state = {
     pageWords: null,
   },
   lastHighlightTime: 0,
-  highlightDebounceMs: 1000, // Debounce highlighting operation
+  highlightDebounceMs: 1000,
 };
 
 // Language detection and processing
@@ -140,11 +140,14 @@ const ankiAPI = {
 
     cardsData.result.forEach((card) => {
       const word = langUtils.stripHtml(card.fields.Word.value).trim();
+      const reading = card.fields.Reading
+        ? langUtils.stripHtml(card.fields.Reading.value).trim()
+        : null;
 
       if (card.interval > 21) {
-        state.deckWords.known.add(word);
+        state.deckWords.known.set(word, reading);
       } else {
-        state.deckWords.unknown.add(word);
+        state.deckWords.unknown.set(word, reading);
       }
     });
   },
@@ -274,19 +277,46 @@ const pageAnalyzer = {
   _calculateStats(pageWords) {
     const stats = { known: 0, unknown: 0, new: 0, deckPercentage: 0 };
     const totalWords = pageWords.size;
+    const processedWords = new Set();
 
     for (const word of pageWords) {
       const cleanWord = word.trim();
-      if (state.deckWords.known.has(cleanWord)) {
-        stats.known++;
-      } else if (state.deckWords.unknown.has(cleanWord)) {
-        stats.unknown++;
-      } else {
+
+      // Check if word matches either form in known cards
+      let found = false;
+      for (const [knownWord, reading] of state.deckWords.known.entries()) {
+        if (cleanWord === knownWord || cleanWord === reading) {
+          if (!processedWords.has(knownWord)) {
+            stats.known++;
+            processedWords.add(knownWord);
+          }
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        // Check unknown cards if not found in known
+        for (const [
+          unknownWord,
+          reading,
+        ] of state.deckWords.unknown.entries()) {
+          if (cleanWord === unknownWord || cleanWord === reading) {
+            if (!processedWords.has(unknownWord)) {
+              stats.unknown++;
+              processedWords.add(unknownWord);
+            }
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (!found) {
         stats.new++;
       }
     }
 
-    // Calculate percentage of words that are in the deck (both known and unknown)
     if (totalWords > 0) {
       stats.deckPercentage = Math.round(
         ((stats.known + stats.unknown) / totalWords) * 100,
@@ -304,14 +334,12 @@ const pageAnalyzer = {
   },
 
   _applyHighlighting(textNodes) {
-    // Debounce highlight operations
     const now = Date.now();
     if (now - state.lastHighlightTime < state.highlightDebounceMs) {
       return;
     }
     state.lastHighlightTime = now;
 
-    // Create a map of existing highlights to avoid unnecessary re-highlighting
     const existingHighlights = new Map();
     document
       .querySelectorAll(".anki-highlight-known, .anki-highlight-unknown")
@@ -335,7 +363,6 @@ const pageAnalyzer = {
       if (!text.trim()) return;
 
       const fragment = document.createDocumentFragment();
-      let lastIndex = 0;
 
       if (langUtils.containsCJK(text)) {
         const lang = langUtils.detectLanguage(text);
@@ -347,39 +374,79 @@ const pageAnalyzer = {
           const existing = existingHighlights.get(token);
 
           if (existing) {
-            // Reuse existing highlight
             fragment.appendChild(existing.element.cloneNode(true));
-          } else if (
-            state.deckWords.known.has(cleanToken) ||
-            state.deckWords.unknown.has(cleanToken)
-          ) {
+          } else {
+            let isKnown = false;
+            let isUnknown = false;
+
+            // Check both word and reading in known/unknown maps
+            for (const [word, reading] of state.deckWords.known.entries()) {
+              if (cleanToken === word || cleanToken === reading) {
+                isKnown = true;
+                break;
+              }
+            }
+
+            if (!isKnown) {
+              for (const [word, reading] of state.deckWords.unknown.entries()) {
+                if (cleanToken === word || cleanToken === reading) {
+                  isUnknown = true;
+                  break;
+                }
+              }
+            }
+
             const span = document.createElement("span");
             span.textContent = token;
-            span.className = state.deckWords.known.has(cleanToken)
-              ? "anki-highlight-known"
-              : "anki-highlight-unknown";
+            if (isKnown) {
+              span.className = "anki-highlight-known";
+            } else if (isUnknown) {
+              span.className = "anki-highlight-unknown";
+            } else {
+              fragment.appendChild(document.createTextNode(token));
+              return;
+            }
             fragment.appendChild(span);
-          } else {
-            fragment.appendChild(document.createTextNode(token));
           }
         });
       } else {
+        // Non-CJK text handling remains the same
         text.split(/(\s+)/).forEach((word) => {
           const cleanWord = word.toLowerCase().replace(/[^\w]/g, "");
           const existing = existingHighlights.get(word);
 
           if (existing) {
             fragment.appendChild(existing.element.cloneNode(true));
-          } else if (
-            cleanWord &&
-            (state.deckWords.known.has(cleanWord) ||
-              state.deckWords.unknown.has(cleanWord))
-          ) {
+          } else if (cleanWord) {
+            let isKnown = false;
+            let isUnknown = false;
+
+            for (const [word, reading] of state.deckWords.known.entries()) {
+              if (cleanWord === word || cleanWord === reading) {
+                isKnown = true;
+                break;
+              }
+            }
+
+            if (!isKnown) {
+              for (const [word, reading] of state.deckWords.unknown.entries()) {
+                if (cleanWord === word || cleanWord === reading) {
+                  isUnknown = true;
+                  break;
+                }
+              }
+            }
+
             const span = document.createElement("span");
             span.textContent = word;
-            span.className = state.deckWords.known.has(cleanWord)
-              ? "anki-highlight-known"
-              : "anki-highlight-unknown";
+            if (isKnown) {
+              span.className = "anki-highlight-known";
+            } else if (isUnknown) {
+              span.className = "anki-highlight-unknown";
+            } else {
+              fragment.appendChild(document.createTextNode(word));
+              return;
+            }
             fragment.appendChild(span);
           } else {
             fragment.appendChild(document.createTextNode(word));
