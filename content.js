@@ -104,9 +104,9 @@ const ankiAPI = {
   async queryBatch(deckName, words) {
     const queries = words.map((word) => {
       if (langUtils.containsCJK(word)) {
-        return `word:"${this._escapeAnkiSearch(word)}"`;
+        return `(word:"${this._escapeAnkiSearch(word)}" OR reading:"${this._escapeAnkiSearch(word)}")`;
       }
-      return `word:${this._escapeAnkiSearch(word)}*`;
+      return `(word:${this._escapeAnkiSearch(word)}* OR reading:${this._escapeAnkiSearch(word)}*)`;
     });
 
     const queryBatches = [];
@@ -140,6 +140,7 @@ const ankiAPI = {
 
     cardsData.result.forEach((card) => {
       const word = langUtils.stripHtml(card.fields.Word.value).trim();
+
       if (card.interval > 21) {
         state.deckWords.known.add(word);
       } else {
